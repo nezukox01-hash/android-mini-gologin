@@ -1,16 +1,21 @@
-name: Build APK (ZIP)
+name: Build APK from ZIP
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # ✅ CHANGE THIS to the exact zip filename in your repo
+      ZIP_NAME: android-mini-gologin-pro-v4.3-stable.zip
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
@@ -19,16 +24,24 @@ jobs:
         run: |
           rm -rf extracted
           mkdir extracted
-          # change this filename only if your zip file name is different
-          unzip -q "android-mini-gologin.zip" -d extracted
-          echo "=== Extracted tree ==="
-          find extracted -maxdepth 3 -type f -name "settings.gradle" -o -name "settings.gradle.kts" || true
+          echo "Using ZIP: $ZIP_NAME"
+          ls -la
+          unzip -q "$ZIP_NAME" -d extracted
+          echo "=== Extracted settings.gradle ==="
+          find extracted -maxdepth 6 -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) || true
 
       - name: Find Android project dir
         id: findproj
         run: |
-          PROJ_DIR=$(dirname "$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) | head -n 1)")
-          echo "Project dir: $PROJ_DIR"
+          FILE=$(find extracted -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1)
+          if [ -z "$FILE" ]; then
+            echo "❌ Could not find settings.gradle in extracted/"
+            echo "Tree:"
+            find extracted -maxdepth 4 -type d
+            exit 1
+          fi
+          PROJ_DIR=$(dirname "$FILE")
+          echo "✅ Project dir: $PROJ_DIR"
           echo "proj_dir=$PROJ_DIR" >> $GITHUB_OUTPUT
 
       - name: Set up JDK 17
@@ -37,7 +50,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Install Gradle 8.5
+      - name: Setup Gradle 8.5
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: 8.5
