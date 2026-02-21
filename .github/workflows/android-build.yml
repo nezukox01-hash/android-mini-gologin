@@ -9,10 +9,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      # ✅ CHANGE THIS to the exact zip filename in your repo
-      ZIP_NAME: android-mini-gologin-pro-v4.3-stable.zip
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,15 +16,27 @@ jobs:
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: Unzip project
+      - name: Unzip project (auto-pick newest ZIP)
         run: |
           rm -rf extracted
-          mkdir extracted
-          echo "Using ZIP: $ZIP_NAME"
+          mkdir -p extracted
+
+          echo "Files in repo root:"
           ls -la
-          unzip -q "$ZIP_NAME" -d extracted
-          echo "=== Extracted settings.gradle ==="
-          find extracted -maxdepth 6 -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) || true
+
+          # Pick the newest .zip from repo root
+          ZIP_FILE=$(ls -t *.zip 2>/dev/null | head -n 1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "❌ No .zip file found in repo root."
+            echo "➡️ Upload your Android project zip in the repo root (same level as README.md)."
+            exit 1
+          fi
+
+          echo "✅ Using ZIP: $ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d extracted
+
+          echo "=== Found settings.gradle / settings.gradle.kts ==="
+          find extracted -maxdepth 10 -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) || true
 
       - name: Find Android project dir
         id: findproj
@@ -36,7 +44,7 @@ jobs:
           FILE=$(find extracted -type f \( -name "settings.gradle" -o -name "settings.gradle.kts" \) | head -n 1)
           if [ -z "$FILE" ]; then
             echo "❌ Could not find settings.gradle in extracted/"
-            echo "Tree:"
+            echo "Tree (top folders):"
             find extracted -maxdepth 4 -type d
             exit 1
           fi
